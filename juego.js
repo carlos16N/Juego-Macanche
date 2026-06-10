@@ -420,4 +420,37 @@ class GestorJuego {
         try {
             const q = query(
                 collection(db, "tabla_records"), 
-                orderBy("puntaje
+                orderBy("puntaje_total", "desc"), 
+                orderBy("tiempo_segundos", "asc"), 
+                limit(10)
+            );
+            
+            const querySnapshot = await getDocs(q);
+
+            let html = '<table class="ranking-table"><tr><th>Pos</th><th>Jugador</th><th>Puntos</th><th>Tiempo</th><th>Nivel</th></tr>';
+            let i = 1;
+
+            querySnapshot.forEach((doc) => {
+                const row = doc.data();
+                html += `<tr>
+                    <td>${i}</td>
+                    <td>${row.nombre_jugador}</td>
+                    <td>${row.puntaje_total}</td>
+                    <td>${row.tiempo_segundos}s</td>
+                    <td>${row.nivel_alcanzado}</td>
+                </tr>`;
+                i++;
+            });
+            html += '</table>';
+            
+            document.getElementById('ranking-table-container').innerHTML = html;
+            document.getElementById('ranking-screen').classList.remove('hidden');
+
+        } catch (e) {
+            console.error("Error obteniendo el ranking desde Firebase: ", e);
+            alert("Abre la consola (F12) y haz clic en el enlace azul de Firebase para generar el Índice.");
+        }
+    }
+}
+
+const juego = new GestorJuego();
