@@ -27,10 +27,16 @@ class Macanche {
         this.width = 32;
         this.height = 32;
         this.speed = 4;
-        this.imagen = imgPreCargada; // Usa la imagen que ya está en memoria
+        this.imagen = imgPreCargada; 
     }
     dibujar(ctx) {
-        if (this.imagen.complete) ctx.drawImage(this.imagen, this.x, this.y, this.width, this.height);
+        // Validación estricta: Si la imagen está lista y no está rota
+        if (this.imagen.complete && this.imagen.naturalWidth > 0) {
+            ctx.drawImage(this.imagen, this.x, this.y, this.width, this.height);
+        } else {
+            ctx.fillStyle = "green"; // Cuadro de emergencia
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+        }
     }
     mover(teclas, canvas) {
         if (teclas['ArrowUp'] && this.y > 0) this.y -= this.speed;
@@ -68,9 +74,14 @@ class Zapote {
         }
     }
     dibujar(ctx) {
-        if (this.visible && this.imagen.complete) {
-            if (this.framesDeVida > 30 || this.framesDeVida % 10 > 5) {
-                ctx.drawImage(this.imagen, this.x, this.y, this.width, this.height);
+        if (this.visible) {
+            if (this.imagen.complete && this.imagen.naturalWidth > 0) {
+                if (this.framesDeVida > 30 || this.framesDeVida % 10 > 5) {
+                    ctx.drawImage(this.imagen, this.x, this.y, this.width, this.height);
+                }
+            } else {
+                ctx.fillStyle = "darkgreen"; // Cuadro de emergencia
+                ctx.fillRect(this.x, this.y, this.width, this.height);
             }
         }
     }
@@ -86,7 +97,12 @@ class CascoArriero {
         this.imagen = imgPreCargada;
     }
     dibujar(ctx) {
-        if (this.imagen.complete) ctx.drawImage(this.imagen, this.x, this.y, this.width, this.height);
+        if (this.imagen.complete && this.imagen.naturalWidth > 0) {
+            ctx.drawImage(this.imagen, this.x, this.y, this.width, this.height);
+        } else {
+            ctx.fillStyle = "gray"; // Cuadro de emergencia
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+        }
     }
     mover() { this.y += this.speed; }
 }
@@ -100,10 +116,10 @@ class Grieta {
         this.imagen = imgPreCargada;
     }
     dibujar(ctx) {
-        if (this.imagen.complete) {
+        if (this.imagen.complete && this.imagen.naturalWidth > 0) {
             ctx.drawImage(this.imagen, this.x, this.y, this.width, this.height);
         } else {
-            ctx.fillStyle = "#1a110a";
+            ctx.fillStyle = "#1a110a"; // Cuadro de emergencia (Tierra)
             ctx.fillRect(this.x, this.y, this.width, this.height);
         }
     }
