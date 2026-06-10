@@ -1,7 +1,7 @@
 // juego.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, getDocs, query, orderBy, limit, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCN94GPlC0Q6BFgU0I1Sf1DDbxnoWtiNRo",
@@ -18,7 +18,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// --- CLASES DE ENTIDADES (Optimizadas con Imágenes Precargadas) ---
+// --- CLASES DE ENTIDADES (Con Seguro Anti-Crashes) ---
 
 class Macanche {
     constructor(x, y, imgPreCargada) {
@@ -30,11 +30,10 @@ class Macanche {
         this.imagen = imgPreCargada; 
     }
     dibujar(ctx) {
-        // Validación estricta: Si la imagen está lista y no está rota
         if (this.imagen.complete && this.imagen.naturalWidth > 0) {
             ctx.drawImage(this.imagen, this.x, this.y, this.width, this.height);
         } else {
-            ctx.fillStyle = "green"; // Cuadro de emergencia
+            ctx.fillStyle = "green";
             ctx.fillRect(this.x, this.y, this.width, this.height);
         }
     }
@@ -80,7 +79,7 @@ class Zapote {
                     ctx.drawImage(this.imagen, this.x, this.y, this.width, this.height);
                 }
             } else {
-                ctx.fillStyle = "darkgreen"; // Cuadro de emergencia
+                ctx.fillStyle = "darkgreen";
                 ctx.fillRect(this.x, this.y, this.width, this.height);
             }
         }
@@ -100,7 +99,7 @@ class CascoArriero {
         if (this.imagen.complete && this.imagen.naturalWidth > 0) {
             ctx.drawImage(this.imagen, this.x, this.y, this.width, this.height);
         } else {
-            ctx.fillStyle = "gray"; // Cuadro de emergencia
+            ctx.fillStyle = "gray";
             ctx.fillRect(this.x, this.y, this.width, this.height);
         }
     }
@@ -119,7 +118,7 @@ class Grieta {
         if (this.imagen.complete && this.imagen.naturalWidth > 0) {
             ctx.drawImage(this.imagen, this.x, this.y, this.width, this.height);
         } else {
-            ctx.fillStyle = "#1a110a"; // Cuadro de emergencia (Tierra)
+            ctx.fillStyle = "#1a110a";
             ctx.fillRect(this.x, this.y, this.width, this.height);
         }
     }
@@ -133,9 +132,10 @@ class GestorJuego {
         this.ctx = this.canvas.getContext('2d');
         this.teclas = {};
         this.jugadorNombre = "";
+        this.jugadorId = null;
         this.activo = false;
 
-        // 1. PRECARGA CENTRALIZADA DE IMÁGENES (Evita el bug del Nivel 2)
+        // PRECARGA CENTRALIZADA DE IMÁGENES
         this.imagenes = {
             macanche: new Image(),
             zapote: new Image(),
@@ -162,7 +162,6 @@ class GestorJuego {
         this.framesNivel2 = 0;
         this.pausado = false;
         
-        // Se inyectan las imágenes ya cargadas
         this.macanche = new Macanche(50, 50, this.imagenes.macanche);
         this.zapotes = [new Zapote(this.canvas, this.imagenes.zapote), new Zapote(this.canvas, this.imagenes.zapote)];
         this.cascos = [];
@@ -175,11 +174,13 @@ class GestorJuego {
             const startScreen = document.getElementById('start-screen');
             if (user) {
                 this.jugadorNombre = user.displayName;
+                this.jugadorId = user.uid; // ID único para el ranking
                 document.getElementById('welcome-title').innerText = `Hola, ${user.displayName}`;
                 document.getElementById('btn-google').classList.add('hidden');
                 document.getElementById('menu-logged-in').classList.remove('hidden');
             } else {
                 this.jugadorNombre = "";
+                this.jugadorId = null;
                 document.getElementById('welcome-title').innerText = "Bienvenido, viajero";
                 document.getElementById('btn-google').classList.remove('hidden');
                 document.getElementById('menu-logged-in').classList.add('hidden');
@@ -303,7 +304,6 @@ class GestorJuego {
         } else if (this.nivel === 2) {
             this.framesNivel2++;
             
-            // Generar un nuevo enemigo inyectándole la imagen precargada
             if (this.framesNivel2 % 30 === 0) {
                 this.cascos.push(new CascoArriero(this.canvas, this.imagenes.casco));
             }
@@ -316,7 +316,6 @@ class GestorJuego {
                 }
             }
 
-            // LIMPIEZA DE MEMORIA: Eliminar cascos que ya salieron de la pantalla por abajo
             this.cascos = this.cascos.filter(c => c.y < this.canvas.height);
 
             if (this.hayColisionRect(this.macanche, this.grieta)) {
@@ -382,17 +381,38 @@ class GestorJuego {
     }
 
     async enviarDatosBackend() {
+        if (!this.jugadorId) return;
+
         try {
-            await addDoc(collection(db, "tabla_records"), {
+            const docRef = doc(db, "tabla_records", this.jugadorId);
+            const docSnap = await getDoc(docRef);
+
+            const nuevoRecord = {
                 nombre_jugador: this.jugadorNombre,
                 puntaje_total: this.puntaje,
                 tiempo_segundos: this.tiempoTotal,
                 nivel_alcanzado: this.nivel,
                 fecha_registro: new Date() 
-            });
-            console.log("Récord guardado exitosamente en la nube de Firebase.");
+            };
+
+            if (docSnap.exists()) {
+                const dataAnterior = docSnap.data();
+                
+                const mejorPuntaje = this.puntaje > dataAnterior.puntaje_total;
+                const mismoPuntajeMejorTiempo = (this.puntaje === dataAnterior.puntaje_total) && (this.tiempoTotal < dataAnterior.tiempo_segundos);
+
+                if (mejorPuntaje || mismoPuntajeMejorTiempo) {
+                    await setDoc(docRef, nuevoRecord);
+                    console.log("¡Récord superado! Base de datos actualizada.");
+                } else {
+                    console.log("No superaste tu récord anterior. No se guardó.");
+                }
+            } else {
+                await setDoc(docRef, nuevoRecord);
+                console.log("Primer récord creado exitosamente.");
+            }
         } catch (e) {
-            console.error("Error al guardar en Firebase: ", e);
+            console.error("Error gestionando el récord en Firebase: ", e);
         }
     }
 
@@ -400,37 +420,4 @@ class GestorJuego {
         try {
             const q = query(
                 collection(db, "tabla_records"), 
-                orderBy("puntaje_total", "desc"), 
-                orderBy("tiempo_segundos", "asc"), 
-                limit(10)
-            );
-            
-            const querySnapshot = await getDocs(q);
-
-            let html = '<table class="ranking-table"><tr><th>Pos</th><th>Jugador</th><th>Puntos</th><th>Tiempo</th><th>Nivel</th></tr>';
-            let i = 1;
-
-            querySnapshot.forEach((doc) => {
-                const row = doc.data();
-                html += `<tr>
-                    <td>${i}</td>
-                    <td>${row.nombre_jugador}</td>
-                    <td>${row.puntaje_total}</td>
-                    <td>${row.tiempo_segundos}s</td>
-                    <td>${row.nivel_alcanzado}</td>
-                </tr>`;
-                i++;
-            });
-            html += '</table>';
-            
-            document.getElementById('ranking-table-container').innerHTML = html;
-            document.getElementById('ranking-screen').classList.remove('hidden');
-
-        } catch (e) {
-            console.error("Error obteniendo el ranking desde Firebase: ", e);
-            alert("Abre la consola (F12) y haz clic en el enlace azul de Firebase para generar el Índice.");
-        }
-    }
-}
-
-const juego = new GestorJuego();
+                orderBy("puntaje
