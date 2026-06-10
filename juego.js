@@ -1,8 +1,8 @@
 // juego.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-// NUEVO: Importaciones de Firestore Database
 import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
 const firebaseConfig = {
   apiKey: "AIzaSyCN94GPlC0Q6BFgU0I1Sf1DDbxnoWtiNRo",
   authDomain: "macanche-fa1b5.firebaseapp.com",
@@ -18,17 +18,16 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// --- CLASES DE ENTIDADES ---
+// --- CLASES DE ENTIDADES (Optimizadas con Imágenes Precargadas) ---
 
 class Macanche {
-    constructor(x, y) {
+    constructor(x, y, imgPreCargada) {
         this.x = x;
         this.y = y;
         this.width = 32;
         this.height = 32;
         this.speed = 4;
-        this.imagen = new Image();
-        this.imagen.src = 'imagen/nativo_ofidio.png';
+        this.imagen = imgPreCargada; // Usa la imagen que ya está en memoria
     }
     dibujar(ctx) {
         if (this.imagen.complete) ctx.drawImage(this.imagen, this.x, this.y, this.width, this.height);
@@ -42,12 +41,11 @@ class Macanche {
 }
 
 class Zapote {
-    constructor(canvas) {
+    constructor(canvas, imgPreCargada) {
         this.canvas = canvas;
         this.width = 40;
         this.height = 40;
-        this.imagen = new Image();
-        this.imagen.src = 'imagen/arbusto.png';
+        this.imagen = imgPreCargada;
         this.reubicar();
     }
     reubicar() {
@@ -79,14 +77,13 @@ class Zapote {
 }
 
 class CascoArriero {
-    constructor(canvas) {
+    constructor(canvas, imgPreCargada) {
         this.width = 32;
         this.height = 32;
         this.x = Math.random() * (canvas.width - this.width);
         this.y = -40;
         this.speed = Math.random() * 2 + 2;
-        this.imagen = new Image();
-        this.imagen.src = 'imagen/casco.png';
+        this.imagen = imgPreCargada;
     }
     dibujar(ctx) {
         if (this.imagen.complete) ctx.drawImage(this.imagen, this.x, this.y, this.width, this.height);
@@ -95,13 +92,12 @@ class CascoArriero {
 }
 
 class Grieta {
-    constructor(canvas) {
+    constructor(canvas, imgPreCargada) {
         this.width = canvas.width;
         this.height = 30;
         this.x = 0;
         this.y = canvas.height - this.height;
-        this.imagen = new Image();
-        this.imagen.src = 'imagen/grietas.png';
+        this.imagen = imgPreCargada;
     }
     dibujar(ctx) {
         if (this.imagen.complete) {
@@ -121,8 +117,20 @@ class GestorJuego {
         this.ctx = this.canvas.getContext('2d');
         this.teclas = {};
         this.jugadorNombre = "";
-        
         this.activo = false;
+
+        // 1. PRECARGA CENTRALIZADA DE IMÁGENES (Evita el bug del Nivel 2)
+        this.imagenes = {
+            macanche: new Image(),
+            zapote: new Image(),
+            casco: new Image(),
+            grieta: new Image()
+        };
+        this.imagenes.macanche.src = 'imagen/nativo_ofidio.png';
+        this.imagenes.zapote.src = 'imagen/arbusto.png';
+        this.imagenes.casco.src = 'imagen/casco.png';
+        this.imagenes.grieta.src = 'imagen/grietas.png';
+        
         this.inicializarInstancias();
         this.asignarEventos();
         this.escucharAutenticacion();
@@ -138,15 +146,15 @@ class GestorJuego {
         this.framesNivel2 = 0;
         this.pausado = false;
         
-        this.macanche = new Macanche(50, 50);
-        this.zapotes = [new Zapote(this.canvas), new Zapote(this.canvas)];
+        // Se inyectan las imágenes ya cargadas
+        this.macanche = new Macanche(50, 50, this.imagenes.macanche);
+        this.zapotes = [new Zapote(this.canvas, this.imagenes.zapote), new Zapote(this.canvas, this.imagenes.zapote)];
         this.cascos = [];
-        this.grieta = new Grieta(this.canvas);
+        this.grieta = new Grieta(this.canvas, this.imagenes.grieta);
         this.canvas.style.backgroundColor = "#f4db9a";
     }
 
     escucharAutenticacion() {
-        // Observador en tiempo real del estado de la sesión de Firebase
         onAuthStateChanged(auth, (user) => {
             const startScreen = document.getElementById('start-screen');
             if (user) {
@@ -156,7 +164,7 @@ class GestorJuego {
                 document.getElementById('menu-logged-in').classList.remove('hidden');
             } else {
                 this.jugadorNombre = "";
-                document.getElementById('welcome-title').innerText = "Ingresa tu nombre, viajero";
+                document.getElementById('welcome-title').innerText = "Bienvenido, viajero";
                 document.getElementById('btn-google').classList.remove('hidden');
                 document.getElementById('menu-logged-in').classList.add('hidden');
                 startScreen.classList.remove('hidden', 'fade-out');
@@ -166,25 +174,21 @@ class GestorJuego {
 
     asignarEventos() {
         window.addEventListener('keydown', (e) => {
-            // CORRECCIÓN: Previene el movimiento/scroll de la página web
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
                 e.preventDefault();
             }
             this.teclas[e.code] = true;
             
-            // CORRECCIÓN: Pausa remapeada exclusivamente a la tecla "P"
             if ((e.code === 'KeyP' || e.key === 'p' || e.key === 'P') && this.activo) {
                 this.pausado = !this.pausado;
             }
         });
         window.addEventListener('keyup', (e) => this.teclas[e.code] = false);
         
-        // Login inicial
         document.getElementById('btn-google').addEventListener('click', () => {
             signInWithPopup(auth, provider).catch(err => console.error("Error Login:", err));
         });
 
-        // Botón Jugar del Menú
         document.getElementById('startBtn').addEventListener('click', () => {
             const startScreen = document.getElementById('start-screen');
             startScreen.classList.add('fade-out');
@@ -194,14 +198,12 @@ class GestorJuego {
             }, 500);
         });
 
-        // Botón Jugar de nuevo (Reinicia sin recargar página)
         document.getElementById('btn-restart').addEventListener('click', () => {
             document.getElementById('end-screen').classList.add('hidden');
             this.inicializarInstancias();
             this.iniciarJuego();
         });
 
-        // Botones de Cerrar Sesión
         const realizarLogout = () => {
             document.getElementById('end-screen').classList.add('hidden');
             this.activo = false;
@@ -210,13 +212,11 @@ class GestorJuego {
         document.getElementById('btn-logout-menu').addEventListener('click', realizarLogout);
         document.getElementById('btn-logout-end').addEventListener('click', realizarLogout);
 
-        // Control de Pantalla de Rankings
         document.getElementById('btn-ranking-menu').addEventListener('click', () => this.obtenerYMostrarRanking());
         document.getElementById('btn-back-ranking').addEventListener('click', () => {
             document.getElementById('ranking-screen').classList.add('hidden');
         });
 
-        // Botón e Evento Escalable de Pantalla Completa
         document.getElementById('btn-fullscreen').addEventListener('click', () => {
             const contenedor = document.getElementById('game-container');
             if (!document.fullscreenElement) {
@@ -237,27 +237,6 @@ class GestorJuego {
             this.grieta.width = this.canvas.width;
             this.grieta.y = this.canvas.height - this.grieta.height;
         });
-    }
-
-    obtenerYMostrarRanking() {
-        fetch('obtener_ranking.php')
-            .then(res => res.json())
-            .then(data => {
-                let html = '<table class="ranking-table"><tr><th>Pos</th><th>Jugador</th><th>Puntos</th><th>Tiempo</th><th>Nivel</th></tr>';
-                data.forEach((row, i) => {
-                    html += `<tr>
-                        <td>${i + 1}</td>
-                        <td>${row.nombre_jugador}</td>
-                        <td>${row.puntaje_total}</td>
-                        <td>${row.tiempo_segundos}s</td>
-                        <td>${row.nivel_alcanzado}</td>
-                    </tr>`;
-                });
-                html += '</table>';
-                document.getElementById('ranking-table-container').innerHTML = html;
-                document.getElementById('ranking-screen').classList.remove('hidden');
-            })
-            .catch(err => console.error("Error cargando ranking:", err));
     }
 
     iniciarJuego() {
@@ -307,7 +286,11 @@ class GestorJuego {
 
         } else if (this.nivel === 2) {
             this.framesNivel2++;
-            if (this.framesNivel2 % 30 === 0) this.cascos.push(new CascoArriero(this.canvas));
+            
+            // Generar un nuevo enemigo inyectándole la imagen precargada
+            if (this.framesNivel2 % 30 === 0) {
+                this.cascos.push(new CascoArriero(this.canvas, this.imagenes.casco));
+            }
 
             for (let i = 0; i < this.cascos.length; i++) {
                 this.cascos[i].mover();
@@ -316,6 +299,9 @@ class GestorJuego {
                     return;
                 }
             }
+
+            // LIMPIEZA DE MEMORIA: Eliminar cascos que ya salieron de la pantalla por abajo
+            this.cascos = this.cascos.filter(c => c.y < this.canvas.height);
 
             if (this.hayColisionRect(this.macanche, this.grieta)) {
                 this.puntaje += 500;
@@ -381,7 +367,6 @@ class GestorJuego {
 
     async enviarDatosBackend() {
         try {
-            // Se inserta un documento directamente en la colección 'tabla_records' de Google
             await addDoc(collection(db, "tabla_records"), {
                 nombre_jugador: this.jugadorNombre,
                 puntaje_total: this.puntaje,
@@ -394,9 +379,9 @@ class GestorJuego {
             console.error("Error al guardar en Firebase: ", e);
         }
     }
+
     async obtenerYMostrarRanking() {
         try {
-            // Creamos una consulta: ordenamos por puntaje mayor, luego por menor tiempo, máximo 10 jugadores
             const q = query(
                 collection(db, "tabla_records"), 
                 orderBy("puntaje_total", "desc"), 
@@ -409,7 +394,6 @@ class GestorJuego {
             let html = '<table class="ranking-table"><tr><th>Pos</th><th>Jugador</th><th>Puntos</th><th>Tiempo</th><th>Nivel</th></tr>';
             let i = 1;
 
-            // Recorremos los datos que llegaron de la nube
             querySnapshot.forEach((doc) => {
                 const row = doc.data();
                 html += `<tr>
@@ -428,8 +412,7 @@ class GestorJuego {
 
         } catch (e) {
             console.error("Error obteniendo el ranking desde Firebase: ", e);
-            // IMPORTANTE: Firebase requiere que crees un "Índice" la primera vez que ordenas por 2 campos a la vez.
-            // Si el ranking no carga, presiona F12 y haz clic en el enlace azul que Firebase dejará en la consola para crearlo automáticamente.
+            alert("Abre la consola (F12) y haz clic en el enlace azul de Firebase para generar el Índice.");
         }
     }
 }
