@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>El Escape de la Serpiente Macanche</title>
+    <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+    <h1>El Escape de la Serpiente Macanche</h1>
+    <p>Nivel 1: Sobrevive al sol en la sombra (15s). Nivel 2: Evade los cascos y llega a la grieta.</p>
+    <p><em>(Presiona "P" para pausar el juego)</em></p>
+
+    <div id="game-container">
+        <button id="btn-fullscreen" title="Pantalla Completa">[ Pantalla Completa ]</button>
+
+        <div id="start-screen" class="overlay">
+            <h2 id="welcome-title">Bienvenido, viajero</h2>
+            
+            <button id="btn-google" style="background-color: #db4437; color: white; padding: 12px 24px; font-size: 18px; border-radius: 8px;">
+                Iniciar sesión con Google
+            </button>
+
+            <div id="menu-logged-in" class="hidden">
+                <button id="startBtn">Jugar Aventura</button>
+                <button id="btn-ranking-menu">Ver Ranking</button>
+                <button id="btn-logout-menu">Cerrar Sesión</button>
+            </div>
+        </div>
+
+        <div id="ranking-screen" class="overlay hidden">
+            <h2>Top Rankings - Región Piura</h2>
+            <div id="ranking-table-container">
+                </div>
+            <button id="btn-back-ranking">Volver al Menú</button>
+        </div>
+
+        <div id="end-screen" class="overlay hidden">
+            <h2 id="end-message">¡Juego Terminado!</h2>
+            <p id="end-stats"></p>
+            <div class="end-buttons">
+                <button id="btn-restart">Jugar de Nuevo</button>
+                <button id="btn-logout-end">Cerrar Sesión</button>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas" width="600" height="400"></canvas>
+    </div>
+
+    <script type="module" src="juego.js"></script>
+</body>
+</html>
